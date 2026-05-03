@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.iml
+*.iws
+*.ipr
+.project
+.classpath
+.c9/
+.settings/
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Documentation
+README.md
+READ.md
+HELP.md
+docs/
+*.md
+
+# Node
+node_modules/
+npm-debug.log
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+.tmp/
+temp/
+
+# Maven wrapper (optional, can be included or excluded based on preference)
+# mvnw
+# mvnw.cmd
+
