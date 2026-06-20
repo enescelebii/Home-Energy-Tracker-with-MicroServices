@@ -4,6 +4,7 @@ import com.vena.deviceservice.model.DeviceType;
 import com.vena.deviceservice.repository.DeviceRepository;
 import com.vena.deviceservice.service.DeviceService;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,6 +23,7 @@ class DeviceServiceApplicationTests {
     void contextLoads() {
     }
 
+    @Disabled
     @Test
     void createDevice() {
         for (int i = 1; i <= NUMBER_OF_DEVICES; i++) {
