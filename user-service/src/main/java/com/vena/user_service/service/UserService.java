@@ -3,6 +3,7 @@ package com.vena.user_service.service;
 
 import com.vena.user_service.dto.UserDto;
 import com.vena.user_service.entity.User;
+import com.vena.user_service.exception.UserNotFoundException;
 import com.vena.user_service.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -65,7 +66,7 @@ public class UserService {
         if (userRepository.existsById(id)) {
             userRepository.deleteById(id);
         } else {
-            throw new RuntimeException("User not found with id: " + id);
+            throw new UserNotFoundException("User not found with id: " + id);
         }
     }
 }

@@ -2,6 +2,7 @@ package com.vena.user_service.controller;
 
 
 import com.vena.user_service.dto.UserDto;
+import com.vena.user_service.exception.UserNotFoundException;
 import com.vena.user_service.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -39,7 +40,7 @@ public class UserController {
         try {
             userService.deleteUser(id);
             return ResponseEntity.noContent().build();
-        } catch (Exception e) {
+        } catch (UserNotFoundException e) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
