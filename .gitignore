@@ -64,3 +64,4 @@ application-*.yml
 Thumbs.db
 .DS_Store
 
+influxdb_data/*
