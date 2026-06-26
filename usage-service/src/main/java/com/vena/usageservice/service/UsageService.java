@@ -4,15 +4,19 @@ import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.QueryApi;
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
+import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
 import com.vena.kafka.event.AlertingEvent;
 import com.vena.kafka.event.EnergyUsageEvent;
 import com.vena.usageservice.client.DeviceClient;
 import com.vena.usageservice.client.UserClient;
 import com.vena.usageservice.dto.DeviceDto;
+import com.vena.usageservice.dto.UsageDto;
 import com.vena.usageservice.dto.UserDto;
+import com.vena.usageservice.modal.Device;
 import com.vena.usageservice.modal.DeviceEnergy;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.java.Log;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Value;
@@ -183,5 +187,108 @@ public class UsageService {
 
         QueryApi queryApi = influxDBClient.getQueryApi();
         return queryApi.query(influxQuery, orgName);
+    }
+
+    public UsageDto getXDaysUsageForUser(Long userId, int days) {
+        log.info("Fetching usage data for userId={} over the last {} days", userId, days);
+        if (days <= 0) {
+            throw new IllegalArgumentException("days must be positive");
+        }
+        final List<DeviceDto> deviceDto = deviceClient.getAllDevicesForUser(userId);
+
+        final List<Device> devices = new ArrayList<>();
+        for (DeviceDto devicesDto : deviceDto) {
+            devices.add(Device.builder()
+                    .id(devicesDto.id())
+                    .name(devicesDto.name())
+                    .type(devicesDto.type())
+                    .location(devicesDto.location())
+                    .userId(devicesDto.userId())
+                    .build());
+        }
+
+
+        if (devices == null || devices.isEmpty()) {
+            return UsageDto.builder().userId(userId)
+                    .devices(Collections.emptyList())
+                    .build();
+        }
+
+        List<String> deviceIdStrings = devices.stream()
+                .map(Device::getId)
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .toList();
+
+        final Instant now = Instant.now();
+        final Instant start = now.minusSeconds((long) days * 24 * 3600);
+
+        // flux db query things
+        final String deviceFilter = deviceIdStrings.stream()
+                .map(idStr -> String.format("r[\"deviceId\"] == \"%s\"", idStr))
+                .collect(Collectors.joining(" or "));
+
+        String fluxQuery = String.format("""
+                from(bucket: "%s")
+                  |> range(start: time(v: "%s"), stop: time(v: "%s"))
+                  |> filter(fn: (r) => r._measurement == "energy_usage")
+                  |> filter(fn: (r) => r._field == "energyConsumed")
+                  |> filter(fn: (r) => %s)
+                  |> group(columns: ["deviceId"])
+                  |> sum(column: "_value")
+                """, bucket, start.toString(), now.toString(), deviceFilter);
+
+        final Map<Long, Double> aggregatedMap = new HashMap<>();
+
+        try {
+            QueryApi queryApi = influxDBClient.getQueryApi();
+            List<FluxTable> tables = queryApi.query(fluxQuery, orgName);
+
+            for (FluxTable table : tables) {
+                for (FluxRecord record : table.getRecords()) {
+                    Object deviceIdObj = record.getValueByKey("deviceId");
+                    String deviceIdStr = deviceIdObj == null ? null : deviceIdObj.toString();
+                    if (deviceIdStr == null) continue;
+
+                    Object value = record.getValueByKey("_value");
+                    double energyConsumed = value instanceof Number number ? number.doubleValue() : 0.0;
+
+                    try {
+                        Long deviceId = Long.valueOf(deviceIdStr);
+                        aggregatedMap.put(deviceId, aggregatedMap.getOrDefault(deviceId, 0.0) + energyConsumed);
+                    } catch (NumberFormatException e) {
+                        log.warn("Invalid deviceId format: {}", deviceIdStr);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error querying InfluxDB for userId={} over the last {} days", userId, days, e);
+            devices.forEach(device -> device.setEnergyConsumed(0.0));
+            return UsageDto.builder()
+                    .userId(userId)
+                    .devices(Collections.emptyList())
+                    .build();
+        }
+        // populate devices with aggregated energy consumption
+        for (Device device : devices) {
+            if (device == null || device.getId() == null) continue;
+            device.setEnergyConsumed(aggregatedMap.getOrDefault(device.getId(), 0.0));
+        }
+        log.info("Aggregated usage data for userId={} over the last {} days: {}", userId, days, aggregatedMap);
+
+        final List<DeviceDto> deviceDtos = devices.stream()
+                .map(device -> DeviceDto.builder()
+                        .id(device.getId())
+                        .name(device.getName())
+                        .type(device.getType())
+                        .location(device.getLocation())
+                        .userId(device.getUserId())
+                        .energyConsumed(device.getEnergyConsumed())
+                        .build())
+                .toList();
+        return UsageDto.builder()
+                .userId(userId)
+                .devices(deviceDtos)
+                .build();
     }
 }
