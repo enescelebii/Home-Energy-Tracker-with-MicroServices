@@ -2,157 +2,152 @@ services:
   mysql:
     image: mysql:8.3.0
     container_name: mysql
-    restart: always
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: home_energy_tracker
     ports:
       - "3307:3306"
     volumes:
-      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql # initial database setup
-      - db-data:/var/lib/mysql # database data
-      - db-logs:/var/log/mysql # database logs (separate volume)
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - mysql-data:/var/lib/mysql
+      - mysql-logs:/var/log/mysql
 
   kafka:
-    container_name: kafka
     image: apache/kafka:latest
+    container_name: kafka
+    restart: unless-stopped
+
     ports:
       - "9092:9092"
       - "9094:9094"
 
     environment:
-
-      #### Kafka ENV VARS
-      # Kafka metadata
-
-      # unique kafka id karışmaması için servis id si
       KAFKA_NODE_ID: 1
-      # küme id'si
-      KAFKA_CLUSTER_ID: 'energy-tracker-cluster-1'
-      # Kafka ROlLER
-      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CLUSTER_ID: energy-tracker-cluster-1
+      KAFKA_PROCESS_ROLES: broker,controller
 
-      #################################
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
 
-      #Controller config
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093' #node itself
-      #Listener name
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-
-      ###################################
-
-      # Network listeners
-      # Listen on all interfaces inside the container so Docker port mappings work.
       KAFKA_LISTENERS: >
         PLAINTEXT://0.0.0.0:9092,
         EXTERNAL://0.0.0.0:9094,
         CONTROLLER://0.0.0.0:9093
 
-      # Advertised listeners:
-      # - PLAINTEXT (internal clients / other containers) use the container host name `kafka`.
-      # - EXTERNAL (host/IDE clients) should use host.docker.internal so services running on Windows can reach the broker.
-      # - CONTROLLER advertised as container host for controller communication.
       KAFKA_ADVERTISED_LISTENERS: >
         PLAINTEXT://kafka:9092,
         EXTERNAL://localhost:9094,
         CONTROLLER://kafka:9093
 
-      # Maps Listener names to their security protocols
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: >
         PLAINTEXT:PLAINTEXT,
         EXTERNAL:PLAINTEXT,
         CONTROLLER:PLAINTEXT
 
-      # Wich listener brokers should use for internal communication
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
 
-      ##################################
-      # single node cluster safety settings
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
 
-      ####################################
-      # broker defaylts quality of life settings speed up
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      # AUTO CREATE TOPICS if they dont exits BU cok onemli kral dikkat et
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      #default number of partitions per topic
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_NUM_PARTITIONS: 1
 
-    # Use a named docker volume for Kafka data (more portable on Windows)
     volumes:
       - kafka-data:/var/lib/kafka/data
 
   kafka-ui:
-    container_name: kafka-ui
     image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    restart: unless-stopped
+
     ports:
       - "8070:8080"
+
     depends_on:
       - kafka
+
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
-      DYNAMIC_CONFIG_ENABLED: 'true'
-    restart: unless-stopped
+      DYNAMIC_CONFIG_ENABLED: "true"
 
   influxdb:
     image: influxdb:2.7.0
     container_name: influxdb
-    restart: always
-    # Expose InfluxDB HTTP API port. InfluxDB v2 listens on 8086 inside the container.
+    restart: unless-stopped
+
     ports:
       - "8086:8086"
+
     environment:
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=password
-      - DOCKER_INFLUXDB_INIT_ORG=vena
-      - DOCKER_INFLUXDB_INIT_BUCKET=usage-bucket
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-token
-      - DOCKER_INFLUXDB_INIT_RETENTION=1w
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: password
+      DOCKER_INFLUXDB_INIT_ORG: vena
+      DOCKER_INFLUXDB_INIT_BUCKET: usage-bucket
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: my-token
+      DOCKER_INFLUXDB_INIT_RETENTION: 1w
+
     volumes:
-      - ./influxdb_data:/var/lib/influxdb2
+      - influxdb-data:/var/lib/influxdb2
 
   mailpit:
     image: axllent/mailpit:latest
     container_name: mailpit
+    restart: unless-stopped
+
     ports:
-      - "1025:1025" # SMTP
-      - "8025:8025" # Web UI
+      - "1025:1025"
+      - "8025:8025"
 
   keycloak-db:
-    container_name: keycloak-mysql
     image: mysql:8.3.0
-    volumes:
-      - ./volume-data/mysql_keycloak_data:/var/lib/mysql
+    container_name: keycloak-db
+    restart: unless-stopped
+
     environment:
-        MYSQL_ROOT_PASSWORD: root
-        MYSQL_DATABASE: keycloak
-        MYSQL_USER: keycloak
-        MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: keycloak
+      MYSQL_USER: keycloak
+      MYSQL_PASSWORD: password
+
+    volumes:
+      - keycloak-db-data:/var/lib/mysql
 
   keycloak:
-    container_name: keycloak
     image: quay.io/keycloak/keycloak:24.0.1
-    command: [ "start-dev", "--import-realm" ]
-    environment:
-      DB_VENDOR: MYSQL
-      DB_ADDR: mysql
-      DB_DATABASE: keycloak
-      DB_USER: keycloak
-      DB_PASSWORD: password
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-    ports:
-      - "8091:8080"
-    volumes:
-      - ./docker/keycloak/realms/:/opt/keycloak/data/import/
+    container_name: keycloak
+    restart: unless-stopped
+
+    command:
+      - start-dev
+      - --import-realm
+
     depends_on:
       - keycloak-db
 
+    environment:
+      KC_DB: mysql
+      KC_DB_URL_HOST: keycloak-db
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: password
+
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+
+    ports:
+      - "8091:8080"
+
+    volumes:
+      - ./docker/keycloak/realms:/opt/keycloak/data/import:ro
+
 volumes:
-  db-data:
-  db-logs:
+  mysql-data:
+  mysql-logs:
   kafka-data:
+  influxdb-data:
+  keycloak-db-data:

@@ -1,6 +1,8 @@
 package com.vena.apigateway.route;
 
+import org.springframework.cloud.gateway.server.mvc.filter.BeforeFilterFunctions;
 import org.springframework.cloud.gateway.server.mvc.filter.CircuitBreakerFilterFunctions;
+import org.springframework.cloud.gateway.server.mvc.handler.GatewayRouterFunctions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -13,6 +15,7 @@ import java.net.URI;
 import static org.springframework.cloud.gateway.server.mvc.filter.BeforeFilterFunctions.uri;
 import static org.springframework.cloud.gateway.server.mvc.handler.GatewayRouterFunctions.route;
 import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFunctions.http;
+import static org.springframework.cloud.gateway.server.mvc.filter.FilterFunctions.setPath;
 
 @Configuration
 public class UserServiceRoutes {
@@ -36,6 +39,16 @@ public class UserServiceRoutes {
         .build();
     }
 
+
+    @Bean
+    public RouterFunction<ServerResponse> userServiceApiDocs(){
+        return GatewayRouterFunctions.route("user-service-api-docs")
+                .route(RequestPredicates.path("/docs/user-service/v3/api-docs"),
+                        http())
+                .before(uri("http://localhost:8080"))
+                .filter(setPath("/v3/api-docs"))
+                .build();
+    }
 
 
 }
