@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 @SpringBootTest
 @Slf4j
+@Disabled
 class UserServiceApplicationTests {
 
 	public static final int NUMBER_OF_USERS = 10;

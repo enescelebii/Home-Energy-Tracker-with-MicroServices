@@ -23,7 +23,7 @@ public class UserService {
                 .surname(input.getSurname())
                 .email(input.getEmail())
                 .address(input.getAddress())
-                .alerting(input.getAlerting())
+                .alerting(input.isAlerting())
                 .energyAlertingThreshold(input.getEnergyAlertingThreshold())
                 .build();
 
@@ -57,7 +57,7 @@ public class UserService {
                 .surname(userDto.getSurname())
                 .email(userDto.getEmail())
                 .address(userDto.getAddress())
-                .alerting(userDto.getAlerting())
+                .alerting(userDto.isAlerting())
                 .energyAlertingThreshold(userDto.getEnergyAlertingThreshold())
                 .build())) : null;
     }
